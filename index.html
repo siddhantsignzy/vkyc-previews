@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Map Preview — RE Dashboard</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f6fa;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    /* Mimics the in-video-call-customer-data panel */
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+      width: 380px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    /* Existing address rows (unchanged) */
+    .address-section {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f9f9fb;
+      border-left: 3px solid #ccc;
+    }
+    .address-section.user    { border-left-color: #e53935; }
+    .address-section.ip      { border-left-color: #f57c00; }
+    .address-section.browser { border-left-color: #1976d2; }
+
+    .address-heading {
+      font-size: 11px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .address-text {
+      font-size: 13px;
+      color: #333;
+    }
+    .address-coords {
+      font-size: 11px;
+      color: #999;
+      font-family: monospace;
+    }
+
+    /* ── THE NEW MAP BLOCK ── */
+    .map-block {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #e0e0e0;
+    }
+
+    .map-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #fafafa;
+      border-bottom: 1px solid #ebebeb;
+    }
+    .map-header span {
+      font-size: 12px;
+      font-weight: 600;
+      color: #444;
+    }
+
+    #map {
+      height: 220px;
+      width: 100%;
+    }
+
+    .map-legend {
+      display: flex;
+      gap: 12px;
+      padding: 8px 12px;
+      background: #fafafa;
+      border-top: 1px solid #ebebeb;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #555;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Distance cards (existing, unchanged) */
+    .distance-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .distance-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #f9f9fb;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .distance-card .label { color: #666; }
+    .distance-card .value { font-weight: 600; color: #333; }
+    .badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .badge.within { background: #e8f5e9; color: #2e7d32; }
+    .badge.out    { background: #fdecea; color: #c62828; }
+  </style>
+</head>
+<body>
+
+<div class="panel">
+
+  <p class="section-title">Location Consistency Checks</p>
+
+  <!-- Existing address rows — unchanged -->
+  <div class="address-section user">
+    <p class="address-heading">User Address (Permanent)</p>
+    <p class="address-text">Andheri West, Mumbai, Maharashtra 400053</p>
+    <p class="address-coords">19.1362° N, 72.8296° E</p>
+  </div>
+
+  <div class="address-section ip">
+    <p class="address-heading">IP Location</p>
+    <p class="address-text">Bandra East, Mumbai, Maharashtra 400051</p>
+    <p class="address-coords">19.0544° N, 72.8405° E</p>
+  </div>
+
+  <div class="address-section browser">
+    <p class="address-heading">Browser Location (Live GPS)</p>
+    <p class="address-text">Santacruz East, Mumbai, Maharashtra 400055</p>
+    <p class="address-coords">19.0822° N, 72.8490° E</p>
+  </div>
+
+  <!-- ── NEW MAP BLOCK ── -->
+  <div class="map-block">
+    <div class="map-header">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+      </svg>
+      <span>Location Map</span>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="map-legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#e53935"></div>
+        User Address
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#f57c00"></div>
+        IP Location
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#1976d2"></div>
+        Browser (Live GPS)
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing distance cards — unchanged -->
+  <p class="section-title">Distance Checks</p>
+  <div class="distance-section">
+    <div class="distance-card">
+      <span class="label">User Address → IP Location</span>
+      <span class="value">3.2 km &nbsp;<span class="badge within">Within Range</span></span>
+    </div>
+    <div class="distance-card">
+      <span class="label">User Address → Browser GPS</span>
+      <span class="value">6.7 km &nbsp;<span class="badge within">Within Range</span></span>
+    </div>
+    <div class="distance-card">
+      <span class="label">IP Location → Browser GPS</span>
+      <span class="value">38.1 km &nbsp;<span class="badge out">Out of Range</span></span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Sample coordinates — same shape as distanceApiData.addresses
+  const pins = [
+    { lat: 19.1362, lng: 72.8296, label: 'User Address (Permanent)\nAndheri West, Mumbai', color: '#e53935' },
+    { lat: 19.0544, lng: 72.8405, label: 'IP Location\nBandra East, Mumbai',              color: '#f57c00' },
+    { lat: 19.0822, lng: 72.8490, label: 'Browser Location (Live GPS)\nSantacruz East',   color: '#1976d2' },
+  ];
+
+  const map = L.map('map', { zoomControl: true, scrollWheelZoom: false });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO'
+  }).addTo(map);
+
+  function makeIcon(color) {
+    return L.divIcon({
+      className: '',
+      html: `<svg width="24" height="34" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 8.5 12 22 12 22s12-13.5 12-22C24 5.37 18.63 0 12 0z"
+              fill="${color}" stroke="white" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="5" fill="white"/>
+      </svg>`,
+      iconSize: [24, 34],
+      iconAnchor: [12, 34],
+      popupAnchor: [0, -34],
+    });
+  }
+
+  const bounds = [];
+  pins.forEach(pin => {
+    L.marker([pin.lat, pin.lng], { icon: makeIcon(pin.color) })
+      .addTo(map)
+      .bindPopup(`<b style="color:${pin.color}">${pin.label.replace('\n','<br>')}</b>`)
+      .openPopup();
+    bounds.push([pin.lat, pin.lng]);
+  });
+
+  map.fitBounds(bounds, { padding: [28, 28] });
+</script>
+
+</body>
+</html>
